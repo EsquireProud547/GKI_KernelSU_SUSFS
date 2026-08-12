@@ -308,6 +308,25 @@ jobs:
           $REPO --trace sync -c -j$(nproc --all) --no-tags --fail-fast
           echo "REMOTE_BRANCH=$REMOTE_BRANCH" >> $GITHUB_ENV
 
+      - name: 回退 DRM valid clones 校验（修复 onyx CWB 原子提交 EINVAL 爆闪）
+        run: |
+          PATCH_FILE="$GITHUB_WORKSPACE/patches/0001-drm-Add-valid-clones-check.patch"
+          KERNEL_GIT="$KERNEL_ROOT/common"
+          if [ ! -f "$PATCH_FILE" ]; then
+            echo "未找到补丁 $PATCH_FILE，跳过"
+            exit 0
+          fi
+          echo "反向应用 clone check 回退补丁..."
+          cp "$PATCH_FILE" "$KERNEL_GIT/"
+          cd "$KERNEL_GIT"
+          if git apply --check -R 0001-drm-Add-valid-clones-check.patch 2>/dev/null; then
+            git apply -R 0001-drm-Add-valid-clones-check.patch
+            echo "[OK] 已删除 drm_atomic_check_valid_clones() -> CWB 原子提交不再被 EINVAL 拒绝"
+          else
+            echo "[SKIP] 当前内核版本不含 valid clones check（6.6.91 及更早），无需回退"
+          fi
+          rm -f 0001-drm-Add-valid-clones-check.patch
+
       - name: 应用 Stock Config 伪装
         run: |
           STOCK_SRC="$GITHUB_WORKSPACE/config/stock_defconfig"
