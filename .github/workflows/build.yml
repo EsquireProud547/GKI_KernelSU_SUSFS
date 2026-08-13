@@ -327,6 +327,25 @@ jobs:
           fi
           rm -f 0001-drm-Add-valid-clones-check.patch
 
+      - name: 回退 perf/core 变更（修复 hardlockup 锁检测器初始化失败，用于抓取冻结）
+        run: |
+          PATCH_FILE="$GITHUB_WORKSPACE/patches/0002-revert-perf-core-pmu-list-rcu-period.patch"
+          KERNEL_GIT="$KERNEL_ROOT/common"
+          if [ ! -f "$PATCH_FILE" ]; then
+            echo "未找到补丁 $PATCH_FILE，跳过"
+            exit 0
+          fi
+          echo "应用 perf/core 回退补丁..."
+          cp "$PATCH_FILE" "$KERNEL_GIT/"
+          cd "$KERNEL_GIT"
+          if git apply --check 0002-revert-perf-core-pmu-list-rcu-period.patch 2>/dev/null; then
+            git apply 0002-revert-perf-core-pmu-list-rcu-period.patch
+            echo "[OK] 已回退 perf/core 变更 -> hardlockup 锁检测器应可初始化"
+          else
+            echo "[SKIP] 补丁不适用（内核版本差异）"
+          fi
+          rm -f 0002-revert-perf-core-pmu-list-rcu-period.patch
+
       - name: 应用 Stock Config 伪装
         run: |
           STOCK_SRC="$GITHUB_WORKSPACE/config/stock_defconfig"
