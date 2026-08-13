@@ -404,6 +404,35 @@ jobs:
             grep "^CONFIG_CMDLINE" "$DEFCONFIG" | head -c 200
           fi
 
+      # 诊断构建: 死锁/内存损坏检测 + panic_on_warn 转储 (冻结瞬间WARN→panic→ramoops)
+      - name: 添加高级诊断选项 (LOCKDEP/DEBUG_OBJECTS/panic_on_warn)
+        run: |
+          DEFCONFIG="$KERNEL_ROOT/common/arch/arm64/configs/gki_defconfig"
+          for CFG in \
+            "CONFIG_LOCKDEP=y" \
+            "CONFIG_DEBUG_OBJECTS=y" \
+            "CONFIG_DEBUG_OBJECTS_TIMERS=y" \
+            "CONFIG_DEBUG_OBJECTS_WORK=y" \
+            "CONFIG_DEBUG_LIST=y" \
+            "CONFIG_DEBUG_MUTEXES=y" \
+            "CONFIG_DEBUG_ATOMIC_SLEEP=y"; do
+            NAME="${CFG%%=*}"
+            if grep -q "^${NAME}=" "$DEFCONFIG"; then
+              sed -i "s/^${NAME}=.*/${CFG}/" "$DEFCONFIG"
+            else
+              echo "$CFG" >> "$DEFCONFIG"
+            fi
+          done
+          # panic_on_warn: 任何 WARN(死锁检测/对象状态异常)直接panic -> ramoops转储
+          if grep -q "panic_on_warn" "$DEFCONFIG"; then
+            echo "panic_on_warn 已存在"
+          else
+            sed -i 's/^CONFIG_CMDLINE=\(.*\)"$/CONFIG_CMDLINE=\1 panic_on_warn=1"/' "$DEFCONFIG"
+            echo "已追加 panic_on_warn=1"
+          fi
+          echo "---- 诊断选项确认 ----"
+          grep -E "^CONFIG_(LOCKDEP|DEBUG_OBJECTS|DEBUG_LIST|DEBUG_MUTEXES|DEBUG_ATOMIC_SLEEP|CMDLINE)" "$DEFCONFIG" | head -c 500
+
       # 以同步后的实际 SUBLEVEL 判断，避免对已包含上游修复的 LTS 重复打补丁
       - name: 自动应用 CVE-2026-43499 rtmutex 修复链
         if: inputs.cve_2026_43499_patch
