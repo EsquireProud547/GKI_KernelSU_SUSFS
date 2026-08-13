@@ -373,6 +373,18 @@ jobs:
           echo "ACTUAL_SUBLEVEL=$ACTUAL_SUBLEVEL" >> $GITHUB_ENV
           echo "实际子版本号: $ACTUAL_SUBLEVEL"
 
+      # 抓取静默冻结: 冻结→panic 转换(抢在gh-watchdog 20s硬复位前触发panic并写ramoops)
+      - name: 添加冻结转panic诊断参数
+        run: |
+          DEFCONFIG="$KERNEL_ROOT/common/arch/arm64/configs/gki_defconfig"
+          if grep -q "softlockup_panic" "$DEFCONFIG"; then
+            echo "诊断参数已存在，跳过"
+          else
+            sed -i 's/^CONFIG_CMDLINE=\(.*\)"$/CONFIG_CMDLINE=\1 softlockup_panic=1 nmi_watchdog=panic panic=-1"/' "$DEFCONFIG"
+            echo "已追加: softlockup_panic=1 nmi_watchdog=panic panic=-1"
+            grep "^CONFIG_CMDLINE" "$DEFCONFIG" | head -c 200
+          fi
+
       # 以同步后的实际 SUBLEVEL 判断，避免对已包含上游修复的 LTS 重复打补丁
       - name: 自动应用 CVE-2026-43499 rtmutex 修复链
         if: inputs.cve_2026_43499_patch
